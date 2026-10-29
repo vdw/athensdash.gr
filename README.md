@@ -4,7 +4,7 @@
 
 It brings together everything that can change a normal day in Attica, for the municipality you choose: transport strikes, weather and official warnings, air quality and Saharan dust, fire risk, power and water cuts, road closures and on-duty pharmacies. It's free and needs no account, with no ads and no tracking. It's in Greek, with an English version.
 
-**Live at [athensdash.gr](https://athensdash.gr)** ([English](https://athensdash.gr/en))
+**Live at [athensdash.gr](https://athensdash.gr)** ([English](https://athensdash.gr/en)), and for Thessaloniki at [thessdash.gr](https://thessdash.gr), from the same code.
 
 > The application source is private. This repository describes what AthensDash does and how it's built, and it will host parts of it released as open source.
 
@@ -54,6 +54,31 @@ AthensDash uses an LLM in production to read these texts, and the same approach 
 - **Privacy is a feature.** No third-party scripts, no tracking cookies and no CDN fonts. Visits are counted without cookies, and visitor locations are never stored. Settings live in a signed cookie.
 - **An archive that outlives pruning.** Raw tables are kept small; nightly rollups write monthly aggregates that are never deleted, and recompute idempotently so a missed night heals itself.
 - **Fast and accessible.** Server-rendered SVG charts with no chart library, self-hosted fonts with full Greek coverage, and status that never relies on colour alone.
+
+## One codebase, two cities
+
+The same application also runs Thessaloniki's site, ThessalonikiDash at [thessdash.gr](https://thessdash.gr). It's the same code, not a fork, so every fix reaches both cities. Each city is a separate deploy with its own data.
+
+```mermaid
+flowchart TB
+  repo["One codebase"] -- "deployed together, from the same commit" --> A
+  repo -- "deployed together, from the same commit" --> T
+  subgraph server["One server, one proxy routing by domain"]
+    A["AthensDash<br/>city: Athens"] --- dbA[("Its own database")]
+    T["ThessalonikiDash<br/>city: Thessaloniki"] --- dbT[("Its own database")]
+  end
+  cfgA["Athens' city file:<br/>brand, municipalities, sources, cards, wording"] -. "read at boot" .-> A
+  cfgT["Thessaloniki's city file:<br/>brand, municipalities, sources, cards, wording"] -. "read at boot" .-> T
+  webA(["athensdash.gr"]) --> A
+  webT(["thessdash.gr"]) --> T
+```
+
+- **A city is a file, not a branch.** At boot, each deploy reads its city's file. The file sets the brand and the municipalities, the sources the site runs and the cards it shows. It also sets each source's own parameters, such as which region's weather warnings and which row of the fuel bulletin to read, and the region and transport modes the strike reader looks for.
+- **Wording per city.** Each city has its own text, which replaces the Athens text sentence by sentence. In Greek a different city needs a different sentence, not just a different name.
+- **The database is the city.** Each site has its own container and SQLite files. No table records which city a row belongs to, so one city's data can never appear on the other's site.
+- **Only what a city has.** Each site shows only the cards its city has sources for. A topic page it doesn't have answers "not found" and is left out of the menu and the sitemap. Thessaloniki started with the cards that needed no new data source: strikes, weather, air quality, dust, fire risk, power cuts, fuel prices, name days, earthquakes, emergency numbers and city rankings. Pharmacies, water cuts and road closures come next.
+- **Separate quotas.** Each site has its own secrets and its own LLM quota, so a busy news day in one city can't hold up the other's strikes.
+- **Both cities are tested.** Every change runs the full test suite as Athens. It then renders every page as Thessaloniki, and the test fails if any Athens or Attica wording appears there.
 
 ## Stack
 
